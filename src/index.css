@@ -8,12 +8,34 @@
   --border: 214.3 31.8% 91.4%;
   --primary: 221.2 83.2% 53.3%;
   --primary-foreground: 210 40% 98%;
+
+  /* Safe Area Insets para notch de iPhone/Android */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
 }
 
 /* Evitar pull-to-refresh no deseado en mobile */
 html, body {
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe Area helpers — clases de utilidad Tailwind-compatible */
+.pt-safe { padding-top: var(--safe-area-top); }
+.pb-safe { padding-bottom: var(--safe-area-bottom); }
+.pl-safe { padding-left: var(--safe-area-left); }
+.pr-safe { padding-right: var(--safe-area-right); }
+
+/* La barra de navegación inferior debe respetar el safe area de iPhone con home indicator */
+.nav-bottom-safe {
+  padding-bottom: calc(0.625rem + var(--safe-area-bottom));
+}
+
+/* Cabecera superior: añadir inset superior cuando hay notch o isla dinámica */
+.header-top-safe {
+  padding-top: calc(1rem + var(--safe-area-top));
 }
 
 /* Custom scrollbars */

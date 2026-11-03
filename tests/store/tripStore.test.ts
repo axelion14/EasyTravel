@@ -70,4 +70,56 @@ describe('Multi-Trip Store Logic', () => {
     expect(updated[0].id).toBe(reversed[0].id);
     expect(updated[updated.length - 1].id).toBe(reversed[reversed.length - 1].id);
   });
+
+  it('updates trip properties and collaborators via updateTrip', () => {
+    const store = useTripStore.getState();
+    store.updateTrip('demo-paris-2026', {
+      title: 'París en Primavera 🌸',
+      travelersCount: 4,
+    });
+
+    const updated = useTripStore.getState().trips.find((t) => t.id === 'demo-paris-2026');
+    expect(updated?.title).toBe('París en Primavera 🌸');
+    expect(updated?.travelersCount).toBe(4);
+  });
+
+  it('imports an external trip bundle and sets it as the active trip', () => {
+    const store = useTripStore.getState();
+    const externalBundle = {
+      trip: {
+        id: 'external-kyoto-1',
+        title: 'Kyoto Tradicional',
+        destination: 'Kioto, Japón',
+        startDate: '2026-11-20',
+        endDate: '2026-11-25',
+        baseCurrency: 'JPY',
+        travelersCount: 2,
+        createdAt: '2026-11-01T00:00:00Z',
+        updatedAt: '2026-11-01T00:00:00Z',
+        isDeleted: false,
+      },
+      stops: [
+        {
+          id: 'ext-stop-1',
+          tripId: 'external-kyoto-1',
+          dayDate: '2026-11-20',
+          order: 0,
+          title: 'Templo Kinkaku-ji',
+          category: 'attraction' as const,
+          location: { lat: 35.0394, lng: 135.7292 },
+          updatedAt: '2026-11-01T00:00:00Z',
+          isDeleted: false,
+        },
+      ],
+      expenses: [],
+    };
+
+    store.importTripBundle(externalBundle);
+
+    const state = useTripStore.getState();
+    expect(state.activeTripId).toBe('external-kyoto-1');
+    expect(state.selectedDay).toBe('2026-11-20');
+    expect(state.getActiveTrip().title).toBe('Kyoto Tradicional');
+    expect(state.stops.some((s) => s.id === 'ext-stop-1')).toBe(true);
+  });
 });

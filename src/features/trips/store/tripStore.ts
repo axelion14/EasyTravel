@@ -36,6 +36,8 @@ interface TripState {
 
   // Acciones de Viajes
   createTrip: (input: CreateTripInput) => string;
+  updateTrip: (tripId: string, updates: Partial<Trip>) => void;
+  importTripBundle: (bundle: { trip: Trip; stops: Stop[]; expenses: Expense[] }) => void;
   setActiveTrip: (tripId: string) => void;
   deleteTrip: (tripId: string) => void;
 
@@ -240,6 +242,27 @@ export const useTripStore = create<TripState>()(
         }));
 
         return id;
+      },
+
+      updateTrip: (tripId, updates) => {
+        set((state) => ({
+          trips: state.trips.map((t) =>
+            t.id === tripId
+              ? { ...t, ...updates, updatedAt: new Date().toISOString() }
+              : t
+          ),
+        }));
+      },
+
+      importTripBundle: (bundle) => {
+        set((state) => ({
+          trips: [bundle.trip, ...state.trips.filter((t) => t.id !== bundle.trip.id)],
+          stops: [...state.stops.filter((s) => s.tripId !== bundle.trip.id), ...bundle.stops],
+          expenses: [...state.expenses.filter((e) => e.tripId !== bundle.trip.id), ...bundle.expenses],
+          activeTripId: bundle.trip.id,
+          selectedDay: bundle.trip.startDate,
+          activeStopId: null,
+        }));
       },
 
       setActiveTrip: (tripId) => {

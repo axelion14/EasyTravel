@@ -1,5 +1,15 @@
 import { Coordinates, UUID } from '@/core/domain/types';
 
+export type CollaboratorRole = 'owner' | 'editor' | 'viewer';
+
+export interface Collaborator {
+  id: string;
+  email: string;
+  name?: string;
+  role: 'editor' | 'viewer';
+  joinedAt: string;
+}
+
 export interface Trip {
   id: UUID;
   title: string;
@@ -10,6 +20,9 @@ export interface Trip {
   baseCurrency: string;
   travelersCount: number;
   totalBudgetLimitCents?: number;
+  shareToken?: string;
+  userRole?: CollaboratorRole;
+  collaborators?: Collaborator[];
   createdAt: string;
   updatedAt: string;
   isDeleted: boolean;

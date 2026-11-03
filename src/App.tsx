@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTripStore } from '@/features/trips/store/tripStore';
 import { calculateBudgetSummary } from '@/features/budget/domain/budget';
-import { OsrmRoutingAdapter } from '@/features/map/infrastructure/osrm-routing.adapter';
+import { CachedRoutingAdapter } from '@/features/map/infrastructure/cached-routing.adapter';
 import { RouteSegment } from '@/features/map/ports/routing.port';
 import { MapView } from '@/features/map/components/MapView';
 import { ItineraryList } from '@/features/itinerary/components/ItineraryList';
@@ -13,9 +13,13 @@ import { TripSwitcherModal } from '@/features/trips/components/TripSwitcherModal
 import { CreateTripModal } from '@/features/trips/components/CreateTripModal';
 import { SmartImportModal } from '@/features/smart-import/components/SmartImportModal';
 import { ExportTripModal } from '@/features/itinerary/components/ExportTripModal';
-import { Calendar, Map as MapIcon, Receipt, Navigation, Clock, RotateCcw, Sparkles } from 'lucide-react';
+import { ShareTripModal } from '@/features/trips/components/ShareTripModal';
+import { AccountModal } from '@/features/sync/components/AccountModal';
+import { NotificationsModal } from '@/features/native/components/NotificationsModal';
+import { useSyncStore } from '@/features/sync/store/syncStore';
+import { Calendar, Map as MapIcon, Receipt, Navigation, Clock, RotateCcw, Sparkles, WifiOff, Bell } from 'lucide-react';
 
-const routingService = new OsrmRoutingAdapter();
+const routingService = new CachedRoutingAdapter();
 
 type TabType = 'itinerary' | 'map' | 'expenses';
 
@@ -26,6 +30,32 @@ export default function App() {
   const [isCreateTripOpen, setIsCreateTripOpen] = useState(false);
   const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isShareTripOpen, setIsShareTripOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Sincronización en la Nube y Estado de Cuenta
+  const { user, syncStatus, initAuth } = useSyncStore();
+
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   // Store persistente (Multi-Trip Local-First)
   const {
@@ -38,6 +68,8 @@ export default function App() {
     getActiveTrip,
     getAvailableDays,
     createTrip,
+    updateTrip,
+    importTripBundle,
     setActiveTrip,
     deleteTrip,
     setSelectedDay,
@@ -55,6 +87,25 @@ export default function App() {
 
   const trip = getActiveTrip();
   const availableDays = getAvailableDays();
+
+  // Escuchar parámetros de enlace compartido (?tripId=...&role=viewer)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sharedTripId = params.get('tripId');
+      const sharedRole = params.get('role') as 'editor' | 'viewer' | null;
+
+      if (sharedTripId) {
+        const targetTrip = trips.find((t) => t.id === sharedTripId && !t.isDeleted);
+        if (targetTrip) {
+          setActiveTrip(sharedTripId);
+          if (sharedRole && targetTrip.userRole !== sharedRole) {
+            updateTrip(sharedTripId, { userRole: sharedRole });
+          }
+        }
+      }
+    }
+  }, [trips, setActiveTrip, updateTrip]);
 
   // Filtrar paradas y gastos pertenecientes exclusivamente al viaje activo
   const activeTripStops = useMemo(() => {
@@ -112,8 +163,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto shadow-2xl relative">
+      {/* Banner de Modo Sin Conexión */}
+      {!isOnline && (
+        <div className="bg-slate-900 text-slate-200 text-xs px-3 py-1 flex items-center justify-center gap-1.5 font-medium shadow-sm z-30">
+          <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span>Modo sin conexión · Usando rutas y datos locales</span>
+        </div>
+      )}
+
       {/* Cabecera común fija */}
-      <div className="p-4 bg-white border-b border-slate-200 sticky top-0 z-20">
+      <div className="px-4 pb-4 pt-4 header-top-safe bg-white border-b border-slate-200 sticky top-0 z-20">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-bold tracking-widest uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
             Travel Planner MVP
@@ -148,6 +207,10 @@ export default function App() {
           }}
           onOpenTripSwitcher={() => setIsTripSwitcherOpen(true)}
           onOpenExport={() => setIsExportModalOpen(true)}
+          onOpenShare={() => setIsShareTripOpen(true)}
+          onOpenAccount={() => setIsAccountModalOpen(true)}
+          isUserLoggedIn={Boolean(user)}
+          syncStatus={syncStatus}
         />
       </div>
 
@@ -257,8 +320,8 @@ export default function App() {
         )}
       </div>
 
-      {/* Barra de navegación inferior móvil */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-2.5 flex items-center justify-around z-30 shadow-lg">
+      {/* Barra de navegación inferior móvil — respeta el home indicator de iOS */}
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 nav-bottom-safe flex items-center justify-around z-30 shadow-lg">
         <button
           onClick={() => setActiveTab('itinerary')}
           className={`flex flex-col items-center gap-1 transition-all ${
@@ -293,6 +356,14 @@ export default function App() {
         >
           <Receipt className="w-5 h-5" />
           <span className="text-[10px]">Gastos</span>
+        </button>
+
+        <button
+          onClick={() => setIsNotificationsOpen(true)}
+          className="flex flex-col items-center gap-1 text-slate-400 hover:text-purple-600 transition-all"
+        >
+          <Bell className="w-5 h-5" />
+          <span className="text-[10px]">Alertas</span>
         </button>
       </nav>
 
@@ -352,6 +423,31 @@ export default function App() {
         trip={trip}
         stops={activeTripStops}
         budgetSummary={budgetSummary}
+      />
+
+      {/* Modal para compartir y colaborar con acompañantes */}
+      <ShareTripModal
+        isOpen={isShareTripOpen}
+        onClose={() => setIsShareTripOpen(false)}
+        trip={trip}
+        stops={activeTripStops}
+        expenses={activeTripExpenses}
+        onUpdateTrip={updateTrip}
+        onImportBundle={importTripBundle}
+      />
+
+      {/* Modal para cuenta y sincronización en la nube */}
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+      />
+
+      {/* Modal para notificaciones y recordatorios de paradas */}
+      <NotificationsModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        stops={activeTripStops}
+        tripTitle={trip.title}
       />
     </div>
   );

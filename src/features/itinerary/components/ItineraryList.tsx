@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { nativeService } from '@/features/native/infrastructure/capacitor-native.adapter';
 import {
   DndContext,
   closestCenter,
@@ -302,14 +303,16 @@ export const ItineraryList: React.FC<ItineraryListProps> = ({
     })
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = stops.findIndex((s) => s.id === active.id);
       const newIndex = stops.findIndex((s) => s.id === over.id);
       onReorder(oldIndex, newIndex);
+      // Háptico de confirmación al soltar una parada reordenada
+      nativeService.haptic('medium');
     }
-  };
+  }, [stops, onReorder]);
 
   const handleOptimize = () => {
     if (stops.length < 3) return;
@@ -320,8 +323,10 @@ export const ItineraryList: React.FC<ItineraryListProps> = ({
       setFeedback(
         `¡Ruta optimizada! Ahorraste ${(result.savedMeters / 1000).toFixed(1)} km (~${result.savedPercentage}%) en desplazamientos.`
       );
+      nativeService.haptic('success');
     } else {
       setFeedback('La ruta actual ya está en el orden más óptimo.');
+      nativeService.haptic('light');
     }
 
     setTimeout(() => {

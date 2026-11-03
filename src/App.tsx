@@ -11,7 +11,9 @@ import { ExpensesTab } from '@/features/budget/components/ExpensesTab';
 import { AddStopModal } from '@/features/itinerary/components/AddStopModal';
 import { TripSwitcherModal } from '@/features/trips/components/TripSwitcherModal';
 import { CreateTripModal } from '@/features/trips/components/CreateTripModal';
-import { Calendar, Map as MapIcon, Receipt, Navigation, Clock, RotateCcw } from 'lucide-react';
+import { SmartImportModal } from '@/features/smart-import/components/SmartImportModal';
+import { ExportTripModal } from '@/features/itinerary/components/ExportTripModal';
+import { Calendar, Map as MapIcon, Receipt, Navigation, Clock, RotateCcw, Sparkles } from 'lucide-react';
 
 const routingService = new OsrmRoutingAdapter();
 
@@ -22,6 +24,8 @@ export default function App() {
   const [isAddStopOpen, setIsAddStopOpen] = useState(false);
   const [isTripSwitcherOpen, setIsTripSwitcherOpen] = useState(false);
   const [isCreateTripOpen, setIsCreateTripOpen] = useState(false);
+  const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Store persistente (Multi-Trip Local-First)
   const {
@@ -114,14 +118,24 @@ export default function App() {
           <span className="text-[10px] font-bold tracking-widest uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
             Travel Planner MVP
           </span>
-          <button
-            onClick={resetToDemo}
-            className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-medium"
-            title="Restablecer datos demo"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reiniciar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSmartImportOpen(true)}
+              className="flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full font-bold transition-colors shadow-xs"
+              title="Pegar correo o confirmación de reserva (Booking, vuelos, etc.)"
+            >
+              <Sparkles className="w-3 h-3 text-amber-500 fill-amber-400" />
+              Importar
+            </button>
+            <button
+              onClick={resetToDemo}
+              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-medium"
+              title="Restablecer datos demo"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reiniciar
+            </button>
+          </div>
         </div>
 
         <TripHeader
@@ -133,6 +147,7 @@ export default function App() {
             setActiveStopId(null);
           }}
           onOpenTripSwitcher={() => setIsTripSwitcherOpen(true)}
+          onOpenExport={() => setIsExportModalOpen(true)}
         />
       </div>
 
@@ -174,6 +189,7 @@ export default function App() {
               onAddStop={() => setIsAddStopOpen(true)}
               onToggleChecklist={toggleStopChecklist}
               onAddChecklistItem={addStopChecklistItem}
+              onOptimizeRoute={(optimizedStops) => setDayStops(trip.id, selectedDay, optimizedStops)}
             />
 
             <BudgetSummary
@@ -310,6 +326,32 @@ export default function App() {
         onCreateTrip={(params) => {
           createTrip(params);
         }}
+      />
+
+      {/* Modal para importar confirmaciones de reservas con IA / heurística */}
+      <SmartImportModal
+        isOpen={isSmartImportOpen}
+        onClose={() => setIsSmartImportOpen(false)}
+        tripId={trip.id}
+        defaultDate={selectedDay}
+        baseCoordinates={baseMapCenter}
+        baseCurrency={trip.baseCurrency}
+        currentDayStopsCount={currentDayStops.length}
+        onImportSuccess={({ stop, expense }) => {
+          addStop(stop);
+          if (expense) {
+            addExpense(expense);
+          }
+        }}
+      />
+
+      {/* Modal para exportar a iCalendar (.ics) o imprimir en PDF */}
+      <ExportTripModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        trip={trip}
+        stops={activeTripStops}
+        budgetSummary={budgetSummary}
       />
     </div>
   );

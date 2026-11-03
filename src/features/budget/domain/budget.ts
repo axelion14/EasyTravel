@@ -1,4 +1,5 @@
 import { Money, UUID } from '@/core/domain/types';
+import { convertMoney, DEFAULT_OFFLINE_RATES } from './currency';
 
 export interface Expense {
   id: UUID;
@@ -23,16 +24,20 @@ export interface BudgetSummaryData {
 
 export function calculateBudgetSummary(
   expenses: Expense[],
-  baseCurrency = 'EUR'
+  baseCurrency = 'EUR',
+  rates: Record<string, number> = DEFAULT_OFFLINE_RATES
 ): BudgetSummaryData {
   let totalActualCents = 0;
   const byCategory: Record<string, number> = {};
 
   for (const exp of expenses) {
     if (exp.isDeleted) continue;
-    // En el MVP asumimos misma moneda o conversión 1:1 si no hay cotizaciones
-    totalActualCents += exp.amount.amountCents;
-    byCategory[exp.category] = (byCategory[exp.category] || 0) + exp.amount.amountCents;
+
+    // Convertir de forma multi-moneda hacia la moneda base del viaje
+    const converted = convertMoney(exp.amount, baseCurrency, rates);
+
+    totalActualCents += converted.amountCents;
+    byCategory[exp.category] = (byCategory[exp.category] || 0) + converted.amountCents;
   }
 
   return {

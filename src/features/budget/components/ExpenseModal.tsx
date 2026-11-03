@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Plus, DollarSign, Calendar, Tag, FileText } from 'lucide-react';
+import { X, Plus, DollarSign, Calendar, Tag, FileText, ArrowRightLeft } from 'lucide-react';
 import { Expense } from '../domain/budget';
-import { generateUUID } from '@/shared/lib/utils';
+import { SUPPORTED_CURRENCIES, convertMoney } from '../domain/currency';
+import { generateUUID, formatCurrency } from '@/shared/lib/utils';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -22,24 +23,33 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [amountInput, setAmountInput] = useState('');
+  const [selectedCurrency, setSelectedCurrency] = useState(currency);
   const [category, setCategory] = useState<Expense['category']>('food');
   const [date, setDate] = useState(defaultDate);
   const [notes, setNotes] = useState('');
 
   if (!isOpen) return null;
 
+  const parsedAmount = parseFloat(amountInput);
+  const amountCents = !isNaN(parsedAmount) && parsedAmount > 0 ? Math.round(parsedAmount * 100) : 0;
+
+  // Si la moneda es diferente a la del viaje, calcular equivalencia
+  const convertedEquiv =
+    amountCents > 0 && selectedCurrency !== currency
+      ? convertMoney({ amountCents, currency: selectedCurrency }, currency)
+      : null;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parseFloat(amountInput);
-    if (!title.trim() || isNaN(parsedAmount) || parsedAmount <= 0) return;
+    if (!title.trim() || amountCents <= 0) return;
 
     const newExpense: Expense = {
       id: generateUUID(),
       tripId,
       title: title.trim(),
       amount: {
-        amountCents: Math.round(parsedAmount * 100),
-        currency,
+        amountCents,
+        currency: selectedCurrency,
       },
       category,
       date,
@@ -49,10 +59,15 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
     };
 
     onSave(newExpense);
+    handleReset();
+    onClose();
+  };
+
+  const handleReset = () => {
     setTitle('');
     setAmountInput('');
+    setSelectedCurrency(currency);
     setNotes('');
-    onClose();
   };
 
   return (
@@ -66,7 +81,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <h3 className="font-bold text-slate-900 text-lg">Registrar Gasto</h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              handleReset();
+              onClose();
+            }}
             className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -89,13 +107,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             />
           </div>
 
-          {/* Monto y Moneda */}
+          {/* Monto y Moneda con Selector */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Monto *
               </label>
-              <div className="relative">
+              <div className="flex gap-1.5">
                 <input
                   type="number"
                   step="0.01"
@@ -103,26 +121,42 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   placeholder="0.00"
                   value={amountInput}
                   onChange={(e) => setAmountInput(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-sm">
-                  {currency === 'EUR' ? '€' : '$'}
-                </span>
+                <select
+                  value={selectedCurrency}
+                  onChange={(e) => setSelectedCurrency(e.target.value)}
+                  className="px-2 py-2.5 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {SUPPORTED_CURRENCIES.map((curr) => (
+                    <option key={curr.code} value={curr.code}>
+                      {curr.code}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {/* Conversión en tiempo real a la moneda del viaje */}
+              {convertedEquiv && (
+                <div className="flex items-center gap-1 mt-1.5 text-[11px] text-blue-600 font-semibold">
+                  <ArrowRightLeft className="w-3 h-3" />
+                  <span>
+                    Equivale a ~{formatCurrency(convertedEquiv.amountCents, currency)}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Fecha
               </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
 
@@ -168,7 +202,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               placeholder="Ej. Pagado con tarjeta Visa, Ref: #12345"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -176,7 +210,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           <div className="flex items-center gap-3 pt-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                handleReset();
+                onClose();
+              }}
               className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 transition-colors"
             >
               Cancelar

@@ -50,4 +50,24 @@ describe('Multi-Trip Store Logic', () => {
     expect(deleted?.isDeleted).toBe(true);
     expect(state.activeTripId).not.toBe('demo-paris-2026');
   });
+
+  it('updates all stops for a specific day via setDayStops (used by route optimizer)', () => {
+    const store = useTripStore.getState();
+    const dayStops = store.stops.filter(
+      (s) => s.tripId === 'demo-paris-2026' && s.dayDate === '2026-11-15'
+    );
+    expect(dayStops.length).toBeGreaterThan(1);
+
+    // Invert order
+    const reversed = [...dayStops].reverse().map((s, idx) => ({ ...s, order: idx }));
+    store.setDayStops('demo-paris-2026', '2026-11-15', reversed);
+
+    const updated = useTripStore
+      .getState()
+      .stops.filter((s) => s.tripId === 'demo-paris-2026' && s.dayDate === '2026-11-15')
+      .sort((a, b) => a.order - b.order);
+
+    expect(updated[0].id).toBe(reversed[0].id);
+    expect(updated[updated.length - 1].id).toBe(reversed[reversed.length - 1].id);
+  });
 });
